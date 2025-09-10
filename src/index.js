@@ -120,8 +120,7 @@ export default class Gantt {
     }
 
     setup_tasks(tasks) {
-        this.tasks = tasks
-            .map((task, i) => {
+        this.tasks = tasks.map((task, i) => {
                 if (!task.start) {
                     console.error(
                         `task "${task.id}" doesn't have a start date`,
@@ -145,7 +144,6 @@ export default class Gantt {
                     return false;
                 }
                 task._end = date_utils.parse(task.end);
-console.log("Parsed _end:", task._end);
                 let diff = date_utils.diff(task._end, task._start, 'year');
                 if (diff < 0) {
                     console.error(
@@ -198,9 +196,27 @@ console.log("Parsed _end:", task._end);
                     task.id = `${task.id}`;
                 }
 
-                return task;
-            })
-            .filter((t) => t);
+                return task; 
+        });
+
+        this.tasks.filter((t) => t);
+
+        const sorted = [...tasks].sort((firstSortItem, secondSortItem) => {
+            const FirstSortItemGroupId = String(firstSortItem.group_id ?? "");
+            const SecondSortItemGroupId = String(secondSortItem.group_id ?? "");
+            
+            if (FirstSortItemGroupId !== SecondSortItemGroupId) {
+                return FirstSortItemGroupId.localeCompare(SecondSortItemGroupId, undefined, { numeric: true });
+            }
+
+            return new Date(firstSortItem.start) - new Date(secondSortItem.start);
+        });
+
+        this.tasks = sorted.map((t, i) => {
+            t._index = i;
+            return t;
+        });
+
         this.setup_dependencies();
     }
 
