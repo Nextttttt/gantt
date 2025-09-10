@@ -32,6 +32,7 @@ export default {
         if (date instanceof Date) {
             return date;
         }
+console.log("parse() input:", date);
         if (typeof date === 'string') {
             let date_parts, time_parts;
             const parts = date.split(' ');

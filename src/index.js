@@ -145,7 +145,7 @@ export default class Gantt {
                     return false;
                 }
                 task._end = date_utils.parse(task.end);
-
+console.log("Parsed _end:", task._end);
                 let diff = date_utils.diff(task._end, task._start, 'year');
                 if (diff < 0) {
                     console.error(
@@ -168,9 +168,11 @@ export default class Gantt {
                 // if hours is not set, assume the last day is full day
                 // e.g: 2018-09-09 becomes 2018-09-09 23:59:59
                 const task_end_values = date_utils.get_date_values(task._end);
-                if (task_end_values.slice(3).every((d) => d === 0)) {
-                    task._end = date_utils.add(task._end, 24, 'hour');
+                if (this.config.unit !== "hour") {
+                    if (task_end_values.slice(3).every((d) => d === 0)) {
+                        task._end = date_utils.add(task._end, 24, "hour");
                 }
+}
 
                 // dependencies
                 if (
@@ -228,21 +230,26 @@ export default class Gantt {
         if (typeof mode === 'string') {
             mode = this.options.view_modes.find((d) => d.name === mode);
         }
-        let old_pos, old_scroll_op;
-        if (maintain_pos) {
-            old_pos = this.$container.scrollLeft;
-            old_scroll_op = this.options.scroll_to;
-            this.options.scroll_to = null;
-        }
+
         this.options.view_mode = mode.name;
         this.config.view_mode = mode;
+
+        switch (mode.name) {
+            case "Hour":
+                this.config.unit = "hour";
+                break;
+            case "Day":
+            case "Week":
+            case "Month":
+                this.config.unit = "day";
+                break;
+            default:
+                this.config.unit = "day";
+        }
+
         this.update_view_scale(mode);
         this.setup_dates(maintain_pos);
         this.render();
-        if (maintain_pos) {
-            this.$container.scrollLeft = old_pos;
-            this.options.scroll_to = old_scroll_op;
-        }
         this.trigger_event('view_change', [mode]);
     }
 
