@@ -405,30 +405,61 @@ export default class Gantt {
         this.$adjust.innerHTML = '&larr;';
     }
 
+    highlight_lane(row_index) {
+        const row_height = this.options.bar_height + this.options.padding;
+        const header_h = this.config.header_height || 50;
+        const sidebar_width = this.options.sidebar_width || 100;
+
+        // find block
+        let block = null;
+        for (let g of this.group_rows) {
+            if (row_index >= g.start_row && row_index <= g.end_row) {
+                block = g;
+                break;
+            }
+        }
+        if (!block) return;
+
+        const y = header_h + block.start_row * row_height;
+        const h = (block.end_row - block.start_row + 1) * row_height;
+
+        // remove old highlight
+        if (this._highlight_rect) this._highlight_rect.remove();
+
+        // new highlight
+        this._highlight_rect = createSVG("rect", {
+            x: 0,
+            y,
+            width: sidebar_width,
+            height: h,
+            style: "fill: yellow; opacity: 0.3;",
+            class: "sidebar-highlight",
+            append_to: this.layers.sidebar,
+        });
+    }
+
+
     make_sidebar() {
-        const sidebar_width = 100;
+        const sidebar_width = this.options.sidebar_width || 100;
         const row_height = (this.options.bar_height || 20) + (this.options.padding || 8);
         const header_h = this.config.header_height || 50;
 
-        // Clear old sidebar
         this.layers.sidebar.innerHTML = "";
+        this.group_rows = [];
+        this._highlight_rect = null;
 
         let i = 0;
+        // count tasks per group
         while (i < this.tasks.length) {
             const groupId = this.tasks[i].group_id ?? "—";
-
-            // Find end of this group block
             let j = i + 1;
-            while (j < this.tasks.length && this.tasks[j].group_id === groupId) {
-                j++;
-            }
+            while (j < this.tasks.length && this.tasks[j].group_id === groupId) j++;
 
-            // Block dimensions
             const count = j - i;
             const y = header_h + i * row_height;
             const h = count * row_height;
 
-            // Background rect
+            // group background
             createSVG("rect", {
                 x: 0,
                 y,
@@ -439,7 +470,7 @@ export default class Gantt {
                 append_to: this.layers.sidebar,
             });
 
-            // Centered group ID
+            // group ID label
             createSVG("text", {
                 x: sidebar_width / 2,
                 y: y + h / 2,
@@ -447,13 +478,15 @@ export default class Gantt {
                 class: "group-label",
                 "text-anchor": "middle",
                 "dominant-baseline": "middle",
+                style: "fill: black; font-size: 13px; font-weight: bold;",
                 append_to: this.layers.sidebar,
             });
 
-            i = j; // move to next group group
+            this.group_rows.push({ group_id: groupId, start_row: i, end_row: j - 1 });
+            i = j;
         }
 
-        // Stick sidebar to visible viewport
+        // keep sidebar aligned with scroll
         const updateSidebar = () => {
             const focusX = this.$container.scrollLeft || 0;
             this.layers.sidebar.setAttribute("transform", `translate(${focusX}, 0)`);
@@ -461,6 +494,7 @@ export default class Gantt {
         updateSidebar();
         this.$container.addEventListener("scroll", updateSidebar);
     }
+
 
 
     make_grid() {
@@ -1155,7 +1189,6 @@ export default class Gantt {
     bind_bar_events() {
         let is_dragging = false;
         let x_on_start = 0;
-        let x_on_scroll_start = 0;
         let y_on_start = 0;
         let is_resizing_left = false;
         let is_resizing_right = false;
@@ -1163,21 +1196,15 @@ export default class Gantt {
         let bars = []; // instanceof Bar
         this.bar_being_dragged = null;
 
+        let mode = null; // 'horizontal' or 'vertical'
+        let dx = 0, dy = 0;
+
         const action_in_progress = () =>
             is_dragging || is_resizing_left || is_resizing_right;
 
         this.$svg.onclick = (e) => {
             if (e.target.classList.contains('grid-row')) this.unselect_all();
         };
-
-        let pos = 0;
-        $.on(this.$svg, 'mousemove', '.bar-wrapper, .handle', (e) => {
-            if (
-                this.bar_being_dragged === false &&
-                Math.abs((e.offsetX || e.layerX) - pos) > 10
-            )
-                this.bar_being_dragged = true;
-        });
 
         $.on(this.$svg, 'mousedown', '.bar-wrapper, .handle', (e, element) => {
             const bar_wrapper = $.closest('.bar-wrapper', element);
@@ -1197,19 +1224,13 @@ export default class Gantt {
             y_on_start = e.offsetY || e.layerY;
 
             parent_bar_id = bar_wrapper.getAttribute('data-id');
-            let ids;
-            if (this.options.move_dependencies) {
-                ids = [
-                    parent_bar_id,
-                    ...this.get_all_dependent_tasks(parent_bar_id),
-                ];
-            } else {
-                ids = [parent_bar_id];
-            }
+            let ids = this.options.move_dependencies
+                ? [parent_bar_id, ...this.get_all_dependent_tasks(parent_bar_id)]
+                : [parent_bar_id];
             bars = ids.map((id) => this.get_bar(id));
 
             this.bar_being_dragged = false;
-            pos = x_on_start;
+            mode = null;
 
             bars.forEach((bar) => {
                 const $bar = bar.$bar;
@@ -1220,174 +1241,60 @@ export default class Gantt {
             });
         });
 
-        if (this.options.infinite_padding) {
-            let extended = false;
-            $.on(this.$container, 'mousewheel', (e) => {
-                let trigger = this.$container.scrollWidth / 2;
-                if (!extended && e.currentTarget.scrollLeft <= trigger) {
-                    let old_scroll_left = e.currentTarget.scrollLeft;
-                    extended = true;
-
-                    this.gantt_start = date_utils.add(
-                        this.gantt_start,
-                        -this.config.extend_by_units,
-                        this.config.unit,
-                    );
-                    this.setup_date_values();
-                    this.render();
-                    e.currentTarget.scrollLeft =
-                        old_scroll_left +
-                        this.config.column_width * this.config.extend_by_units;
-                    setTimeout(() => (extended = false), 300);
-                }
-
-                if (
-                    !extended &&
-                    e.currentTarget.scrollWidth -
-                        (e.currentTarget.scrollLeft +
-                            e.currentTarget.clientWidth) <=
-                        trigger
-                ) {
-                    let old_scroll_left = e.currentTarget.scrollLeft;
-                    extended = true;
-                    this.gantt_end = date_utils.add(
-                        this.gantt_end,
-                        this.config.extend_by_units,
-                        this.config.unit,
-                    );
-                    this.setup_date_values();
-                    this.render();
-                    e.currentTarget.scrollLeft = old_scroll_left;
-                    setTimeout(() => (extended = false), 300);
-                }
-            });
-        }
-
-        $.on(this.$container, 'scroll', (e) => {
-            let localBars = [];
-            const ids = this.bars.map(({ group }) =>
-                group.getAttribute('data-id'),
-            );
-            let dx;
-            if (x_on_scroll_start) {
-                dx = e.currentTarget.scrollLeft - x_on_scroll_start;
-            }
-
-            // Calculate current scroll position's upper text
-            this.current_date = date_utils.add(
-                this.gantt_start,
-                (e.currentTarget.scrollLeft / this.config.column_width) *
-                    this.config.step,
-                this.config.unit,
-            );
-
-            let current_upper = this.config.view_mode.upper_text(
-                this.current_date,
-                null,
-                this.options.language,
-            );
-            let $el = this.upperTexts.find(
-                (el) => el.textContent === current_upper,
-            );
-
-            // Recalculate for smoother experience
-            this.current_date = date_utils.add(
-                this.gantt_start,
-                ((e.currentTarget.scrollLeft + $el.clientWidth) /
-                    this.config.column_width) *
-                    this.config.step,
-                this.config.unit,
-            );
-            current_upper = this.config.view_mode.upper_text(
-                this.current_date,
-                null,
-                this.options.language,
-            );
-            $el = this.upperTexts.find(
-                (el) => el.textContent === current_upper,
-            );
-
-            if ($el !== this.$current) {
-                if (this.$current)
-                    this.$current.classList.remove('current-upper');
-
-                $el.classList.add('current-upper');
-                this.$current = $el;
-            }
-
-            x_on_scroll_start = e.currentTarget.scrollLeft;
-            let [min_start, max_start, max_end] =
-                this.get_start_end_positions();
-
-            if (x_on_scroll_start > max_end + 100) {
-                this.$adjust.innerHTML = '&larr;';
-                this.$adjust.classList.remove('hide');
-                this.$adjust.onclick = () => {
-                    this.$container.scrollTo({
-                        left: max_start,
-                        behavior: 'smooth',
-                    });
-                };
-            } else if (
-                x_on_scroll_start + e.currentTarget.offsetWidth <
-                min_start - 100
-            ) {
-                this.$adjust.innerHTML = '&rarr;';
-                this.$adjust.classList.remove('hide');
-                this.$adjust.onclick = () => {
-                    this.$container.scrollTo({
-                        left: min_start,
-                        behavior: 'smooth',
-                    });
-                };
-            } else {
-                this.$adjust.classList.add('hide');
-            }
-
-            if (dx) {
-                localBars = ids.map((id) => this.get_bar(id));
-                if (this.options.auto_move_label) {
-                    localBars.forEach((bar) => {
-                        bar.update_label_position_on_horizontal_scroll({
-                            x: dx,
-                            sx: e.currentTarget.scrollLeft,
-                        });
-                    });
-                }
-            }
-        });
-
         $.on(this.$svg, 'mousemove', (e) => {
             if (!action_in_progress()) return;
-            const dx = (e.offsetX || e.layerX) - x_on_start;
+
+            dx = (e.offsetX || e.layerX) - x_on_start;
+            dy = (e.offsetY || e.layerY) - y_on_start;
+
+            if (!mode) {
+                if (Math.abs(dx) > 5) mode = 'horizontal';
+                else if (Math.abs(dy) > 5) mode = 'vertical';
+            }
 
             bars.forEach((bar) => {
                 const $bar = bar.$bar;
-                $bar.finaldx = this.get_snap_position(dx, $bar.ox);
-                this.hide_popup();
+
                 if (is_resizing_left) {
-                    if (parent_bar_id === bar.task.id) {
-                        bar.update_bar_position({
-                            x: $bar.ox + $bar.finaldx,
-                            width: $bar.owidth - $bar.finaldx,
-                        });
-                    } else {
-                        bar.update_bar_position({
-                            x: $bar.ox + $bar.finaldx,
-                        });
-                    }
+                    $bar.finaldx = this.get_snap_position(dx, $bar.ox);
+                    bar.update_bar_position({
+                        x: $bar.ox + $bar.finaldx,
+                        width: $bar.owidth - $bar.finaldx,
+                    });
                 } else if (is_resizing_right) {
-                    if (parent_bar_id === bar.task.id) {
-                        bar.update_bar_position({
-                            width: $bar.owidth + $bar.finaldx,
-                        });
+                    $bar.finaldx = this.get_snap_position(dx, $bar.ox);
+                    bar.update_bar_position({
+                        width: $bar.owidth + $bar.finaldx,
+                    });
+                } else if (is_dragging && !this.options.readonly) {
+                    if (mode === 'horizontal') {
+                        $bar.finaldx = this.get_snap_position(dx, $bar.ox);
+                        bar.update_bar_position({ x: $bar.ox + $bar.finaldx });
+                    } else if (mode === 'vertical') {
+                        const row_height =
+                            this.options.bar_height + this.options.padding;
+                        const header_h = this.config.header_height;
+                        const new_row_index = Math.floor(
+                            (bar.$bar.oy + dy - header_h) / row_height,
+                        );
+
+                        this.highlight_lane(new_row_index);
+
+                        // ghost bar
+                        if (!this._ghost_bar) {
+                            this._ghost_bar = createSVG('rect', {
+                                x: $bar.ox,
+                                y: bar.$bar.oy,
+                                width: $bar.owidth,
+                                height: bar.$bar.getHeight(),
+                                style: 'fill: gray; opacity: 0.4; stroke: black; stroke-dasharray: 4 2;',
+                                class: 'ghost-bar',
+                                append_to: this.layers.bar,
+                            });
+                        }
+                        const ghostY = header_h + new_row_index * row_height;
+                        this._ghost_bar.setAttribute('y', ghostY);
                     }
-                } else if (
-                    is_dragging &&
-                    !this.options.readonly &&
-                    !this.options.readonly_dates
-                ) {
-                    bar.update_bar_position({ x: $bar.ox + $bar.finaldx });
                 }
             });
         });
@@ -1402,18 +1309,129 @@ export default class Gantt {
         });
 
         $.on(this.$svg, 'mouseup', (e) => {
-            this.bar_being_dragged = null;
             bars.forEach((bar) => {
                 const $bar = bar.$bar;
-                if (!$bar.finaldx) return;
-                bar.date_changed();
-                bar.compute_progress();
-                bar.set_action_completed();
+
+                if (mode === 'horizontal' && $bar.finaldx) {
+                    bar.date_changed();
+                    bar.compute_progress();
+                    bar.set_action_completed();
+                }
+
+                if (mode === 'vertical') {
+                    const row_height = this.options.bar_height + this.options.padding;
+                    const header_h = this.config.header_height;
+                    const new_row_index = Math.floor(
+                        (bar.$bar.oy + dy - header_h) / row_height,
+                    );
+
+                    let new_group = null;
+                    for (let block of this.group_rows) {
+                        if (
+                            new_row_index >= block.start_row &&
+                            new_row_index <= block.end_row
+                        ) {
+                            new_group = block.group_id;
+                            break;
+                        }
+                    }
+
+                    if (new_group && new_group !== bar.task.group_id) {
+                        // animate snap
+                        const targetY = header_h + new_row_index * row_height;
+                        const currentY = bar.$bar.oy;
+                        const duration = 200;
+                        const startTime = performance.now();
+
+                        const animate = (time) => {
+                            const progress = Math.min(
+                                (time - startTime) / duration,
+                                1,
+                            );
+                            const eased =
+                                progress < 0.5
+                                    ? 2 * progress * progress
+                                    : -1 + (4 - 2 * progress) * progress;
+
+                            const newY =
+                                currentY + (targetY - currentY) * eased;
+                            bar.group.setAttribute(
+                                'transform',
+                                `translate(${$bar.finaldx || 0}, ${newY - bar.y})`,
+                            );
+
+                            if (progress < 1) {
+                                requestAnimationFrame(animate);
+                            } else {
+                                bar.task.group_id = new_group;
+
+                                this.tasks.sort((a, b) => {
+                                    if (a.group_id === b.group_id) {
+                                        return new Date(a.start) - new Date(b.start);
+                                    }
+                                    return a.group_id.localeCompare(b.group_id);
+                                });
+
+                                // Recompute group rows (row index ranges per group)
+                                this.group_rows = [];
+                                let current_group = null;
+                                let start_row = 0;
+
+                                this.tasks.forEach((t, idx) => {
+                                    if (t.group_id !== current_group) {
+                                        if (current_group !== null) {
+                                            this.group_rows.push({
+                                                group_id: current_group,
+                                                start_row,
+                                                end_row: idx - 1,
+                                            });
+                                        }
+                                        current_group = t.group_id;
+                                        start_row = idx;
+                                    }
+                                });
+
+                                // push the last group
+                                if (current_group !== null) {
+                                    this.group_rows.push({
+                                        group_id: current_group,
+                                        start_row,
+                                        end_row: this.tasks.length - 1,
+                                    });
+                                }
+                                
+                                this.tasks.forEach((t, i) => {
+                                    t._index = i;
+                                });
+                                this.make_sidebar();
+                                this.render();
+                            }
+                        };
+
+                        requestAnimationFrame(animate);
+                    } else {
+                        this.render();
+                    }
+                }
             });
+
+            // cleanup
+            if (this._highlight_rect) {
+                this._highlight_rect.remove();
+                this._highlight_rect = null;
+            }
+            if (this._ghost_bar) {
+                this._ghost_bar.remove();
+                this._ghost_bar = null;
+            }
+
+            this.bar_being_dragged = null;
+            mode = null;
         });
 
         this.bind_bar_progress();
     }
+
 
     bind_bar_progress() {
         let x_on_start = 0;
