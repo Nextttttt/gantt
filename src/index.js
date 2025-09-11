@@ -380,11 +380,12 @@ export default class Gantt {
         this.map_arrows_on_bars();
         this.set_dimensions();
         this.set_scroll_position(this.options.scroll_to);
+        this.make_sidebar();
     }
 
     setup_layers() {
         this.layers = {};
-        const layers = ['grid', 'arrow', 'progress', 'bar'];
+        const layers = ['grid', 'arrow', 'progress', 'bar', 'sidebar'];
         // make group layers
         for (let layer of layers) {
             this.layers[layer] = createSVG('g', {
@@ -403,6 +404,64 @@ export default class Gantt {
         });
         this.$adjust.innerHTML = '&larr;';
     }
+
+    make_sidebar() {
+        const sidebar_width = 100;
+        const row_height = (this.options.bar_height || 20) + (this.options.padding || 8);
+        const header_h = this.config.header_height || 50;
+
+        // Clear old sidebar
+        this.layers.sidebar.innerHTML = "";
+
+        let i = 0;
+        while (i < this.tasks.length) {
+            const groupId = this.tasks[i].group_id ?? "—";
+
+            // Find end of this group block
+            let j = i + 1;
+            while (j < this.tasks.length && this.tasks[j].group_id === groupId) {
+                j++;
+            }
+
+            // Block dimensions
+            const count = j - i;
+            const y = header_h + i * row_height;
+            const h = count * row_height;
+
+            // Background rect
+            createSVG("rect", {
+                x: 0,
+                y,
+                width: sidebar_width,
+                height: h,
+                style: "fill: #f9f9f9; stroke: #ccc;",
+                class: "sidebar-group",
+                append_to: this.layers.sidebar,
+            });
+
+            // Centered group ID
+            createSVG("text", {
+                x: sidebar_width / 2,
+                y: y + h / 2,
+                innerHTML: "#" + groupId,
+                class: "group-label",
+                "text-anchor": "middle",
+                "dominant-baseline": "middle",
+                append_to: this.layers.sidebar,
+            });
+
+            i = j; // move to next group group
+        }
+
+        // Stick sidebar to visible viewport
+        const updateSidebar = () => {
+            const focusX = this.$container.scrollLeft || 0;
+            this.layers.sidebar.setAttribute("transform", `translate(${focusX}, 0)`);
+        };
+        updateSidebar();
+        this.$container.addEventListener("scroll", updateSidebar);
+    }
+
 
     make_grid() {
         this.make_grid_background();

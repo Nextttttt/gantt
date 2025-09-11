@@ -340,4 +340,15 @@
             }
         }
     }
+    .group-label {
+        font-weight: bold;
+        font-size: 13px;
+        fill: #222;
+    }
+
+    .sidebar-group {
+        fill: #f9f9f9;
+        stroke: #ddd;
+    }
+
 }
