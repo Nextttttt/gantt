@@ -132,12 +132,12 @@ const DEFAULT_OPTIONS = {
 
         const start_date = date_utils.format(
             ctx.task._start,
-            'MMM D',
+            'MMM D, HH:mm',
             ctx.chart.options.language,
         );
         const end_date = date_utils.format(
             date_utils.add(ctx.task._end, -1, 'second'),
-            'MMM D',
+            'MMM D, HH:mm',
             ctx.chart.options.language,
         );
 
