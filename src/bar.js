@@ -577,7 +577,6 @@ export default class Bar {
         const diff =
             date_utils.diff(task_start, gantt_start, this.gantt.config.unit) /
             this.gantt.config.step;
-
         let x = diff * column_width;
 
         /* Since the column width is based on 30,

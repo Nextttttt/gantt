@@ -16,6 +16,7 @@ export default class Gantt {
         this.setup_tasks(tasks);
         this.change_view_mode();
         this.bind_events();
+        this.initialize_range();
     }
 
     setup_wrapper(element) {
@@ -249,19 +250,8 @@ export default class Gantt {
 
         this.options.view_mode = mode.name;
         this.config.view_mode = mode;
-
-        switch (mode.name) {
-            case "Hour":
-                this.config.unit = "hour";
-                break;
-            case "Day":
-            case "Week":
-            case "Month":
-                this.config.unit = "day";
-                break;
-            default:
-                this.config.unit = "day";
-        }
+        //Only working Unit is hour, to be used for exact hourly bar width
+        this.config.unit = "hour";
 
         this.update_view_scale(mode);
         this.setup_dates(maintain_pos);
@@ -271,10 +261,29 @@ export default class Gantt {
 
     update_view_scale(mode) {
         let { duration, scale } = date_utils.parse_duration(mode.step);
+        let minHourlyColumnWidth = 22;
+
         this.config.step = duration;
         this.config.unit = scale;
-        this.config.column_width =
-            this.options.column_width || mode.column_width || 45;
+        switch (mode.name) {
+            case "Hour":
+            default: {
+                this.config.column_width = minHourlyColumnWidth;
+                break;
+            }
+            case "Day": {
+                this.config.column_width = minHourlyColumnWidth * 24;
+                break;
+            }
+            case "Month": {
+                this.config.column_width = minHourlyColumnWidth * 24 * 30;
+                break;
+            }
+            case "Year": {
+                this.config.column_width = minHourlyColumnWidth * 24 * 365;
+                break;
+            }
+        }
         this.$container.style.setProperty(
             '--gv-column-width',
             this.config.column_width + 'px',
@@ -1658,6 +1667,106 @@ export default class Gantt {
         this.$current_highlight?.remove?.();
         this.$extras?.remove?.();
         this.popup?.hide?.();
+    }
+
+    scroll_to_start() {
+        if (!this.tasks || this.tasks.length === 0) return;
+
+        const min_start = new Date(Math.min(...this.tasks.map(t => new Date(t.start))));
+        const diff = date_utils.diff(min_start, this.gantt_start, this.config.unit) / this.config.step;
+
+        const scrollX = diff * this.config.column_width;
+
+        this.$container.scrollLeft = scrollX - 100;
+    }
+
+    // Call this whenever tasks are (re)loaded
+    initialize_range() {
+        if (!this.tasks || this.tasks.length === 0) return;
+
+        // compute min start / max end from tasks
+        const min_start = new Date(Math.min(...this.tasks.map(t => new Date(t.start))));
+        const max_end   = new Date(Math.max(...this.tasks.map(t => new Date(t.end))));
+        const range_days = (max_end - min_start) / (1000 * 60 * 60 * 24);
+
+        // pick scale based on range
+        const base_scale = this.choose_scale(range_days);
+        // apply scale
+        this.apply_scale(base_scale, min_start, max_end);
+
+        // store for future zooms
+        this._zoom_index = 1; // reset to middle level
+
+        this.scroll_to_start();
+    }
+
+    // Decide base scale from range in days
+    choose_scale(range_days) {
+        if (range_days <= 3) {
+            return {view_mode: "Hour", step: 1, column_width: this.config.column_width };
+        }
+        if (range_days <= 90) {
+            return {view_mode: "Day", step: 1, column_width: this.config.column_width * 24 };
+        }
+        if (range_days <= 730) {
+            return { view_mode: "Month", step: 1, column_width: this.config.column_width * 24 * 30 };
+        }
+        return { view_mode: "Year", step: 1, column_width: this.config.column_width * 24 * 365};
+    }
+
+    // Apply scale + re-render
+    apply_scale(scale, start, end) {
+        this.config.step = scale.step;
+        this.config.column_width = scale.column_width;
+        let mode = this.options.view_modes.find((d) => d.name === scale.view_mode);
+        this.change_view_mode(mode, start, end);
+        this.gantt_start = start;
+        this.gantt_end = end;
+
+        this.setup_dates();
+        this.render();
+    }
+
+    // Zoom presets for each unit (only change resolution, not unit)
+    get zoom_levels() {
+        return {
+            hour: [
+                { step: 1, column_width: 120 },
+                { step: 1, column_width: 60 },
+                { step: 1, column_width: 30 }
+            ],
+            day: [
+                { step: 1, column_width: 80 },
+                { step: 1, column_width: 40 },
+                { step: 1, column_width: 20 }
+            ],
+            month: [
+                { step: 1, column_width: 120 },
+                { step: 1, column_width: 60 },
+                { step: 1, column_width: 30 }
+            ],
+            year: [
+                { step: 1, column_width: 200 },
+                { step: 1, column_width: 100 },
+                { step: 1, column_width: 50 }
+            ],
+        };
+    }
+
+    // Manual zoom in/out
+    set_zoom(direction) {
+        const unit = this.config.unit;
+        const levels = this.zoom_levels[unit];
+        if (!levels) return;
+
+        // Default to middle zoom if not set
+        this._zoom_index = this._zoom_index ?? 1;
+
+        if (direction === "in" && this._zoom_index > 0) this._zoom_index--;
+        if (direction === "out" && this._zoom_index < levels.length - 1) this._zoom_index++;
+
+        const scale = { unit, ...levels[this._zoom_index] };
+        this.apply_scale(scale, this.gantt_start, this.gantt_end);
     }
 }
 
