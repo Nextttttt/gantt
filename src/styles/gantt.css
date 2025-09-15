@@ -6,7 +6,6 @@
     overflow: auto;
     font-size: 12px;
     height: var(--gv-grid-height);
-    width: 100%;
     border-radius: 8px;
 
     & .popup-wrapper {
@@ -252,12 +251,12 @@
     }
 
     & .tick {
-        stroke: var(--g-tick-color);
-        stroke-width: 0.4;
+        stroke: #000;
+        stroke-width: 0.6;
 
         &.thick {
-            stroke: var(--g-tick-color-thick);
-            stroke-width: 0.7;
+            stroke: #000;
+            stroke-width: 0.6;
         }
     }
 
@@ -350,4 +349,35 @@
         stroke: #ddd;
     }
 
+}
+.gantt-task-table {
+    display: inline-block;
+    width: 30%;
+    margin-bottom: 0.45%;
+}
+
+.gantt-container {
+    display: inline-block;
+    width: 70%;
+}
+
+.gantt-task-table table {
+    border: 1px solid #ccc; 
+    border-collapse: collapse;
+    float: right;
+    border-right: 0px;
+}
+
+.gantt-task-table th {
+    background: #f0f0f0; 
+    border: 1px solid #ccc; 
+    padding: 0 4px;
+    font-weight: bold;
+    text-align: left;
+}
+
+.gantt-task-table td {
+    border: 1px solid #ccc;
+    padding: 0 4px;
+    color: #333;
 }

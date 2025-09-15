@@ -71,6 +71,10 @@ export default class Gantt {
         });
     }
 
+    setup_sidebar_table() {
+        this.setup_table();
+    }
+
     setup_options(options) {
         this.original_options = options;
         this.options = { ...DEFAULT_OPTIONS, ...options };
@@ -398,6 +402,7 @@ export default class Gantt {
 
     render() {
         this.clear();
+        this.setup_sidebar_table()
         this.setup_layers();
         this.make_grid();
         this.make_dates();
@@ -1737,6 +1742,62 @@ export default class Gantt {
 
         const scale = { unit, ...levels[this._zoom_index] };
         this.apply_scale(scale, this.gantt_start, this.gantt_end);
+    }
+
+    setup_table() {
+        let parentElement = this.$container.parentNode;
+        // Create container if not exists
+        if (!this.$table_container) {
+            this.$table_container = this.create_el({
+                classes: 'gantt-task-table',
+                append_to: this.$container.parentNode,
+                element: 'div'
+            });
+        }
+        parentElement.insertBefore(this.$table_container,this.$container);
+
+        // Clear old content
+        this.$table_container.innerHTML = '';
+
+        // Build table
+        const table = document.createElement('table');
+        table.classList.add('task-table');
+        const thead = document.createElement('thead');
+        thead.innerHTML = `
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Start</th>
+                <th>End</th>
+            </tr>
+        `;
+        table.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        const row_height = this.options.bar_height + this.options.padding;
+        this.tasks.forEach(task => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${task.id}</td>
+                <td>${task.name}</td>
+                <td>${task._start.toLocaleString()}</td>
+                <td>${task._end.toLocaleString()}</td>
+            `;
+            tr.style.height = row_height + "px";
+            tbody.appendChild(tr);
+        });
+
+        table.appendChild(tbody);
+        this.$table_container.appendChild(table);
+        let tableHeaders = document.querySelectorAll(".gantt-task-table th");
+        
+        tableHeaders.forEach((th) => {
+            th.style.height = `${this.config.header_height}px`;
+            th.style.lineHeight = `${this.config.header_height}px`;
+            th.style.paddingTop = "0";
+            th.style.paddingBottom = "0";
+        });
+
+        
     }
 }
 
