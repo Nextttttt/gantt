@@ -16,7 +16,7 @@ export default class Gantt {
         this.setup_tasks(tasks);
         this.change_view_mode();
         this.bind_events();
-        this.initialize_range();
+        this.scroll_to_start();
     }
 
     setup_wrapper(element) {
@@ -244,6 +244,23 @@ export default class Gantt {
     }
 
     change_view_mode(mode = this.options.view_mode, maintain_pos = false) {
+        const min_start = new Date(Math.min(...this.tasks.map(t => new Date(t.start))));
+        const max_end   = new Date(Math.max(...this.tasks.map(t => new Date(t.end))));
+        const range_days = (max_end - min_start) / (1000 * 60 * 60 * 24);
+
+        if(range_days <= 3) {
+            mode = "Hour";
+        }
+        else if (range_days <= 90) {
+            mode = "Day";
+        }
+        else if (range_days <= 720) {
+            mode = "Month";
+        }
+        else {
+            mode = "Year";
+        }
+
         if (typeof mode === 'string') {
             mode = this.options.view_modes.find((d) => d.name === mode);
         }
@@ -253,14 +270,15 @@ export default class Gantt {
         //Only working Unit is hour, to be used for exact hourly bar width
         this.config.unit = "hour";
 
-        this.update_view_scale(mode);
+        this.update_view_scale(mode, range_days);
         this.setup_dates(maintain_pos);
         this.render();
         this.trigger_event('view_change', [mode]);
     }
 
-    update_view_scale(mode) {
+    update_view_scale(mode, range_days) {
         let { duration, scale } = date_utils.parse_duration(mode.step);
+
         let minHourlyColumnWidth = 22;
 
         this.config.step = duration;
@@ -272,15 +290,15 @@ export default class Gantt {
                 break;
             }
             case "Day": {
-                this.config.column_width = minHourlyColumnWidth * 24;
+                this.config.column_width = this.$container.offsetWidth / (range_days + 1) - 10;
                 break;
             }
             case "Month": {
-                this.config.column_width = minHourlyColumnWidth * 24 * 30;
+                this.config.column_width = this.$container.offsetWidth / (range_days + 1) - 10;
                 break;
             }
             case "Year": {
-                this.config.column_width = minHourlyColumnWidth * 24 * 365;
+                this.config.column_width = this.$container.offsetWidth / (range_days + 1) - 10;
                 break;
             }
         }
@@ -1678,53 +1696,6 @@ export default class Gantt {
         const scrollX = diff * this.config.column_width;
 
         this.$container.scrollLeft = scrollX - 100;
-    }
-
-    // Call this whenever tasks are (re)loaded
-    initialize_range() {
-        if (!this.tasks || this.tasks.length === 0) return;
-
-        // compute min start / max end from tasks
-        const min_start = new Date(Math.min(...this.tasks.map(t => new Date(t.start))));
-        const max_end   = new Date(Math.max(...this.tasks.map(t => new Date(t.end))));
-        const range_days = (max_end - min_start) / (1000 * 60 * 60 * 24);
-
-        // pick scale based on range
-        const base_scale = this.choose_scale(range_days);
-        // apply scale
-        this.apply_scale(base_scale, min_start, max_end);
-
-        // store for future zooms
-        this._zoom_index = 1; // reset to middle level
-
-        this.scroll_to_start();
-    }
-
-    // Decide base scale from range in days
-    choose_scale(range_days) {
-        if (range_days <= 3) {
-            return {view_mode: "Hour", step: 1, column_width: this.config.column_width };
-        }
-        if (range_days <= 90) {
-            return {view_mode: "Day", step: 1, column_width: this.config.column_width * 24 };
-        }
-        if (range_days <= 730) {
-            return { view_mode: "Month", step: 1, column_width: this.config.column_width * 24 * 30 };
-        }
-        return { view_mode: "Year", step: 1, column_width: this.config.column_width * 24 * 365};
-    }
-
-    // Apply scale + re-render
-    apply_scale(scale, start, end) {
-        this.config.step = scale.step;
-        this.config.column_width = scale.column_width;
-        let mode = this.options.view_modes.find((d) => d.name === scale.view_mode);
-        this.change_view_mode(mode, start, end);
-        this.gantt_start = start;
-        this.gantt_end = end;
-
-        this.setup_dates();
-        this.render();
     }
 
     // Zoom presets for each unit (only change resolution, not unit)
