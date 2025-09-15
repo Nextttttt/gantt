@@ -435,7 +435,7 @@ export default class Gantt {
     highlight_lane(row_index) {
         const row_height = this.options.bar_height + this.options.padding;
         const header_h = this.config.header_height || 50;
-        const sidebar_width = this.options.sidebar_width || 100;
+        const sidebar_width = this.options.sidebar_width || 0;
 
         // find block
         let block = null;
@@ -467,7 +467,7 @@ export default class Gantt {
 
 
     make_sidebar() {
-        const sidebar_width = this.options.sidebar_width || 100;
+        const sidebar_width = this.options.sidebar_width || 0;
         const row_height = (this.options.bar_height || 20) + (this.options.padding || 8);
         const header_h = this.config.header_height || 50;
 
@@ -496,19 +496,19 @@ export default class Gantt {
                 class: "sidebar-group",
                 append_to: this.layers.sidebar,
             });
-
-            // group ID label
-            createSVG("text", {
-                x: sidebar_width / 2,
-                y: y + h / 2,
-                innerHTML: "#" + groupId,
-                class: "group-label",
-                "text-anchor": "middle",
-                "dominant-baseline": "middle",
-                style: "fill: black; font-size: 13px; font-weight: bold;",
-                append_to: this.layers.sidebar,
-            });
-
+            if (sidebar_width != 0) {
+                // group ID label
+                createSVG("text", {
+                    x: sidebar_width / 2,
+                    y: y + h / 2,
+                    innerHTML: "#" + groupId,
+                    class: "group-label",
+                    "text-anchor": "middle",
+                    "dominant-baseline": "middle",
+                    style: "fill: black; font-size: 13px; font-weight: bold;",
+                    append_to: this.layers.sidebar,
+                });
+            }
             this.group_rows.push({ group_id: groupId, start_row: i, end_row: j - 1 });
             i = j;
         }
@@ -521,8 +521,6 @@ export default class Gantt {
         updateSidebar();
         this.$container.addEventListener("scroll", updateSidebar);
     }
-
-
 
     make_grid() {
         this.make_grid_background();
@@ -1304,9 +1302,10 @@ export default class Gantt {
                         const new_row_index = Math.floor(
                             (bar.$bar.oy + dy - header_h) / row_height,
                         );
-
-                        this.highlight_lane(new_row_index);
-
+                        if (this.options.sidebar_width != 0) {
+                            this.highlight_lane(new_row_index);
+                        }
+            
                         // ghost bar
                         if (!this._ghost_bar) {
                             this._ghost_bar = createSVG('rect', {

@@ -266,9 +266,9 @@
         stroke: var(--g-arrow-color);
         stroke-width: 1.5;
     }
-
+    
     & .bar-wrapper .bar {
-        fill: var(--g-bar-color);
+        fill: #ffa500;
         stroke: var(--g-bar-border);
         stroke-width: 0;
         transition: stroke-width 0.3s ease;
@@ -327,7 +327,6 @@
 
         & .bar {
             outline: 1px solid var(--g-row-border-color);
-            border-radius: 3px;
         }
 
         &:hover {
