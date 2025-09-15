@@ -48,16 +48,17 @@ export default class Bar {
     }
 
     prepare_values() {
+        let diff_in_hours = (this.task._end - this.task._start) / (1000 * 60 * 60);
         this.invalid = this.task.invalid;
         this.height = this.gantt.options.bar_height;
         this.image_size = this.height - 5;
-        this.task._start = new Date(this.task.start);
-        this.task._end = new Date(this.task.end);
+        this.task._start = new Date(this.task.start.replace(" ", "T"));
+        this.task._end = new Date(this.task.end.replace(" ", "T"));
         this.compute_x();
         this.compute_y();
         this.compute_duration();
         this.corner_radius = this.gantt.options.bar_corner_radius;
-        this.width = this.gantt.config.column_width * this.duration;
+        this.width = 22 * diff_in_hours;
         if (!this.task.progress || this.task.progress < 0)
             this.task.progress = 0;
         if (this.task.progress > 100) this.task.progress = 100;
