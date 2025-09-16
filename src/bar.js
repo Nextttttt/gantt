@@ -58,7 +58,7 @@ export default class Bar {
         this.compute_y();
         this.compute_duration();
         this.corner_radius = this.gantt.options.bar_corner_radius;
-        this.width = 22 * diff_in_hours;
+        this.width = this.gantt.config.column_width / 24 * diff_in_hours;
         if (!this.task.progress || this.task.progress < 0)
             this.task.progress = 0;
         if (this.task.progress > 100) this.task.progress = 100;
@@ -524,18 +524,18 @@ export default class Bar {
 
     compute_start_end_date() {
         const bar = this.$bar;
-        const x_in_units = bar.getX() / this.gantt.config.column_width;
+        const x_in_units = bar.getX() / this.gantt.config.column_width * 24;
         let new_start_date = date_utils.add(
             this.gantt.gantt_start,
             x_in_units * this.gantt.config.step,
-            this.gantt.config.unit,
+            "hour",
         );
 
         const width_in_units = bar.getWidth() / this.gantt.config.column_width;
         const new_end_date = date_utils.add(
             new_start_date,
             width_in_units * this.gantt.config.step,
-            this.gantt.config.unit,
+            "hour",
         );
 
         return { new_start_date, new_end_date };

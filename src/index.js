@@ -268,7 +268,6 @@ export default class Gantt {
         if (typeof mode === 'string') {
             mode = this.options.view_modes.find((d) => d.name === mode);
         }
-
         this.options.view_mode = mode.name;
         this.config.view_mode = mode;
         //Only working Unit is hour, to be used for exact hourly bar width
@@ -336,7 +335,7 @@ export default class Gantt {
                 gantt_end = task._end;
             }
         }
-
+        
         gantt_start = date_utils.start_of(gantt_start, this.config.unit);
         gantt_end = date_utils.start_of(gantt_end, this.config.unit);
 
@@ -377,7 +376,6 @@ export default class Gantt {
         }
         this.config.date_format =
             this.config.view_mode.date_format || this.options.date_format;
-        this.gantt_start.setHours(0, 0, 0, 0);
     }
 
     setup_date_values() {
@@ -1344,6 +1342,7 @@ export default class Gantt {
                 const $bar = bar.$bar;
 
                 if (mode === 'horizontal' && $bar.finaldx) {
+                    this.setup_sidebar_table();
                     bar.date_changed();
                     bar.compute_progress();
                     bar.set_action_completed();
@@ -1459,7 +1458,6 @@ export default class Gantt {
             this.bar_being_dragged = null;
             mode = null;
         });
-
         this.bind_bar_progress();
     }
 
@@ -1567,7 +1565,7 @@ export default class Gantt {
     get_snap_position(dx, ox) {
         let unit_length = 1;
         const default_snap =
-            this.options.snap_at || this.config.view_mode.snap_at || '1d';
+            this.options.snap_at || this.config.view_mode.snap_at || '1h';
 
         if (default_snap !== 'unit') {
             const { duration, scale } = date_utils.parse_duration(default_snap);
