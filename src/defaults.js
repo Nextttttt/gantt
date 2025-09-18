@@ -58,7 +58,7 @@ const DEFAULT_VIEW_MODES = [
         step: '1d',
         lower_text: (d, ld, lang) =>
             !ld || d.getDate() !== ld.getDate()
-                ? date_utils.format(d, 'D', lang)
+                ? date_utils.format(d, 'D MMM', lang)
                 : '',
         upper_text: (d, ld, lang) =>
             !ld || d.getMonth() !== ld.getMonth()

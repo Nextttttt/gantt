@@ -1757,45 +1757,73 @@ export default class Gantt {
         // Clear old content
         this.$table_container.innerHTML = '';
 
-        // Build table
         const table = document.createElement('table');
         table.classList.add('task-table');
-        const thead = document.createElement('thead');
-        thead.innerHTML = `
-            <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Start</th>
-                <th>End</th>
-            </tr>
-        `;
-        table.appendChild(thead);
-        const tbody = document.createElement('tbody');
-        const row_height = this.options.bar_height + this.options.padding;
-        this.tasks.forEach(task => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${task.id}</td>
-                <td>${task.name}</td>
-                <td>${task._start.toLocaleString()}</td>
-                <td>${task._end.toLocaleString()}</td>
-            `;
-            tr.style.height = row_height + "px";
-            tbody.appendChild(tr);
-        });
 
+        const thead = document.createElement('thead');
+        const tbody = document.createElement('tbody');
+
+        const row_height = this.options.bar_height + this.options.padding;
+        
+        // Build Default table
+        if(!this.tasks[0].table_columns) {
+            thead.innerHTML = `
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Start</th>
+                    <th>End</th>
+                </tr>
+            `;
+            
+            this.tasks.forEach(task => {
+                let tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${task.id}</td>
+                    <td>${task.name}</td>
+                    <td>${task._start.toLocaleString()}</td>
+                    <td>${task._end.toLocaleString()}</td>
+                `;
+                tr.style.height = row_height + "px";
+                tbody.appendChild(tr);
+            });
+        }
+        else {
+            let tr = document.createElement("tr");
+
+            for (var key in this.tasks[0].table_columns) {
+                 tr.innerHTML = tr.innerHTML.concat(
+                    "<th>" + this.tasks[0].table_columns[key].name + "</th>"
+                );
+            }
+        
+            thead.appendChild(tr);
+
+            this.tasks.forEach(task => {
+                let tr = document.createElement('tr');
+
+                for (var key in task.table_columns) {
+                 tr.innerHTML = tr.innerHTML.concat(
+                    "<td>" + task.table_columns[key].value + "</td>"
+                );
+            }
+                tr.style.height = row_height + "px";
+                tbody.appendChild(tr);
+            });
+        }
+
+        table.appendChild(thead);
         table.appendChild(tbody);
         this.$table_container.appendChild(table);
+
         let tableHeaders = document.querySelectorAll(".gantt-task-table th");
-        
+            
         tableHeaders.forEach((th) => {
             th.style.height = `${this.config.header_height}px`;
             th.style.lineHeight = `${this.config.header_height}px`;
             th.style.paddingTop = "0";
             th.style.paddingBottom = "0";
         });
-
-        
     }
 }
 
