@@ -82,6 +82,7 @@ export default class Gantt {
             'grid-height': 'container_height',
             'bar-height': 'bar_height',
             'lower-header-height': 'lower_header_height',
+            'middle-header-height': 'middle_header_height',
             'upper-header-height': 'upper_header_height',
         };
         for (let name in CSS_VARIABLES) {
@@ -311,6 +312,7 @@ export default class Gantt {
         );
         this.config.header_height =
             this.options.lower_header_height +
+            this.options.middle_header_height +
             this.options.upper_header_height +
             10;
     }
@@ -600,6 +602,10 @@ export default class Gantt {
 
         this.$upper_header = this.create_el({
             classes: 'upper-header',
+            append_to: this.$header,
+        });
+        this.$middle_header = this.create_el({
+            classes: 'middle-header',
             append_to: this.$header,
         });
         this.$lower_header = this.create_el({
@@ -907,7 +913,25 @@ export default class Gantt {
     }
 
     make_dates() {
+        //const weekOfYear = d => Math.floor((d - new Date(d.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24) / 7);
+            
+        let thisWeekNum = 0;
+        let previousWeekNum = 0;
+
         this.get_dates_to_draw().forEach((date, i) => {
+            let thisWeekNum = this.getISOWeek(date.date);
+            if (previousWeekNum != thisWeekNum) {
+                previousWeekNum = thisWeekNum;
+                let $middle_text = this.create_el({
+                        left:date.x == 0 ? date.x : date.x - this.config.column_width,
+                        width:date.x == 0 ? this.config.column_width * 0.8 : this.config.column_width * 6.8,
+                        top: date.middle_y,
+                        classes: 'middle-text week_' + thisWeekNum,
+                        append_to: this.$middle_header,
+                });
+                $middle_text.innerText = thisWeekNum;
+            }
+
             if (date.lower_text) {
                 let $lower_text = this.create_el({
                     left: date.x,
@@ -915,6 +939,13 @@ export default class Gantt {
                     classes: 'lower-text date_' + sanitize(date.formatted_date),
                     append_to: this.$lower_header,
                 });
+                if(date.date.getDay() == 0) {
+                   
+                }
+                if(date.date.getDay() == 6) {
+                    $lower_text.style.borderRight = "2px solid #000";
+                }
+                $lower_text.style.paddingBottom = "8px";
                 $lower_text.innerText = date.lower_text;
             }
 
@@ -950,7 +981,7 @@ export default class Gantt {
 
         const x = last_date_info
             ? last_date_info.x + last_date_info.column_width
-            : 0;
+            : -1.5;
 
         let upper_text = this.config.view_mode.upper_text;
         let lower_text = this.config.view_mode.lower_text;
@@ -990,8 +1021,9 @@ export default class Gantt {
                 last_date,
                 this.options.language,
             ),
-            upper_y: 17,
-            lower_y: this.options.upper_header_height + 5,
+            upper_y: this.options.upper_header_height / 3,
+            middle_y: this.options.upper_header_height + this.options.middle_header_height / 3,
+            lower_y: this.options.upper_header_height + this.options.middle_header_height +this.options.lower_header_height / 3,
         };
     }
 
@@ -1824,6 +1856,15 @@ export default class Gantt {
             th.style.paddingTop = "0";
             th.style.paddingBottom = "0";
         });
+    }
+    
+    getISOWeek(date) {
+        const target = new Date(date.valueOf());
+        const dayNr = (date.getDay() + 6) % 7; // Mon=0, Sun=6
+        target.setDate(target.getDate() - dayNr + 3); // nearest Thursday
+        const firstThursday = new Date(target.getFullYear(), 0, 4);
+        const diff = target - firstThursday;
+        return 1 + Math.round(diff / (7 * 24 * 3600 * 1000));
     }
 }
 
